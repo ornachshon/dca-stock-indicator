@@ -102,10 +102,16 @@ export async function GET(request: NextRequest) {
         const revenue = revenueByDate.get(date)!;
         const amount = incomeByDate.get(date)!;
         const percent = Math.round((amount / revenue) * 1000) / 10;
+        const operatingAmount = operatingIncomeByDate.get(date);
+        const operatingPercent =
+          operatingAmount != null && revenue !== 0
+            ? Math.round((operatingAmount / revenue) * 1000) / 10
+            : null;
         return {
           year: formatYear(date),
           amount,
           percent,
+          operatingPercent,
         };
       })
       .filter((point) => point.amount !== 0 || point.percent !== 0);

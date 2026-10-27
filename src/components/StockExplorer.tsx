@@ -40,10 +40,13 @@ import {
   calculateInstitutionalOwnershipScore,
   calculateOperatingMarginScore,
   calculateRevenueGrowthScore,
+  calculateRuleOf40Score,
   calculateScalabilityTestScore,
   calculateShortInterestScore,
   calculateSp500ComparisonScore,
   formatCashRatio,
+  SCORE_METRIC_COUNT,
+  TOTAL_MAX_SCORE,
 } from "../lib/score";
 
 const NORMAL_BAR = "#4f8cff";
@@ -57,6 +60,7 @@ const MARGIN_BAR = "#fbbf24";
 const MARGIN_LINE = "#3dd6c6";
 const PE_LINE = "#818cf8";
 const OPEX_GROWTH = "#ff7b7b";
+const RULE_BAR = "#fb923c";
 
 type AnalysisTab = "price" | "financials" | "insights" | "score";
 
@@ -110,6 +114,147 @@ function AnalysisTabBar({
         );
       })}
     </div>
+  );
+}
+
+const METRIC_HELP = {
+  "Total score":
+    "Adds up every check below. A higher number means more of them look healthy.",
+  "Cash vs debt":
+    "Cash is money the company has. Debt is money it owes. More cash than debt is safer.",
+  "Revenue growth":
+    "Revenue is total sales. This shows whether those sales are getting bigger.",
+  "Operating margin":
+    "Out of each dollar of sales, how much is left after the cost of running the business.",
+  "Rule of 40":
+    "Add yearly sales growth to the share of sales left after running the business. 40 or more is a healthy mix of growth and profit.",
+  "Short interest":
+    "The share of the stock that investors are betting will fall. Higher means more doubt.",
+  "Institutional ownership":
+    "How much of the stock is owned by big funds, not everyday investors.",
+  "Scalability test":
+    "Checks if sales are growing faster than costs. If they are, the business gets more efficient as it grows.",
+  "vs S&P 500 (5Y)":
+    "Compares this stock’s gain over 5 years with the overall US stock market.",
+  "Moat test":
+    "A moat is what makes it hard for rivals to steal customers, like a strong brand or a product people won’t switch from.",
+  "Competitive moat":
+    "A moat is what makes it hard for rivals to steal customers, like a strong brand or a product people won’t switch from.",
+  "CEO test":
+    "Looks at who runs the company and whether they have a record of growing the business.",
+  CEO: "The person in charge of the company.",
+  "Recession proof":
+    "Would people still buy from this company if the economy got worse?",
+  "Secular trend test":
+    "Is the company riding a long-lasting change in how people live or work, not a short fad?",
+  "Culture / mission":
+    "Whether the company stands for something clear that employees and customers can get behind.",
+  "Talent score":
+    "Whether this kind of business tends to attract and keep skilled people.",
+  "P/E ratio":
+    "The stock price compared with yearly profit. A higher number means you pay more for each dollar of profit.",
+  "Net margin":
+    "Out of each dollar of sales, how much becomes profit after every cost.",
+  "Double down":
+    "The price is at least 20% below its high of the past year, so this app flags a possible time to buy more.",
+} as const;
+
+function MetricHelp({ topic }: { topic: keyof typeof METRIC_HELP }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={`Explain ${topic}`}
+        onClick={() => setOpen(true)}
+        style={{
+          marginLeft: 8,
+          width: 18,
+          height: 18,
+          padding: 0,
+          borderRadius: 999,
+          border: "1px solid var(--line)",
+          background: "transparent",
+          color: "var(--muted)",
+          fontSize: "0.72rem",
+          fontWeight: 700,
+          lineHeight: "16px",
+          cursor: "pointer",
+          verticalAlign: "middle",
+        }}
+      >
+        ?
+      </button>
+      {open && (
+        <div
+          role="presentation"
+          onClick={() => setOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 40,
+            background: "rgba(6, 10, 18, 0.62)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={topic}
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(420px, 100%)",
+              borderRadius: 16,
+              border: "1px solid var(--line)",
+              background: "#121a2b",
+              padding: "18px 18px 16px",
+              boxShadow: "0 18px 50px rgba(0,0,0,0.35)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div style={{ fontWeight: 700, color: "var(--text)" }}>{topic}</div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                style={{
+                  border: "1px solid var(--line)",
+                  borderRadius: 999,
+                  padding: "4px 10px",
+                  background: "transparent",
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+            <p style={{ margin: "10px 0 0", color: "var(--muted)", lineHeight: 1.5 }}>
+              {METRIC_HELP[topic]}
+            </p>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -462,6 +607,7 @@ function RevenueTooltip({
   payload,
   label,
   currency,
+  growthLabel,
 }: {
   active?: boolean;
   payload?: ReadonlyArray<{
@@ -470,6 +616,7 @@ function RevenueTooltip({
   }>;
   label?: string | number;
   currency: string;
+  growthLabel: string;
 }) {
   if (!active || !payload?.length) return null;
 
@@ -504,7 +651,7 @@ function RevenueTooltip({
             }}
           >
             {isGrowth
-              ? `YoY growth: ${formatGrowth(num)}`
+              ? `${growthLabel}: ${formatGrowth(num)}`
               : `Revenue: ${Number.isFinite(num) ? formatBillions(num) : value} ${currency}`}
           </div>
         );
@@ -528,6 +675,7 @@ export function StockExplorer() {
   const [financialsError, setFinancialsError] = useState<string | null>(null);
   const [revenue, setRevenue] = useState<RevenuePayload | null>(null);
   const [revenueError, setRevenueError] = useState<string | null>(null);
+  const [revenueView, setRevenueView] = useState<"annual" | "quarterly">("annual");
   const [margins, setMargins] = useState<MarginsPayload | null>(null);
   const [marginsError, setMarginsError] = useState<string | null>(null);
   const [peRatio, setPeRatio] = useState<PeRatioPayload | null>(null);
@@ -601,6 +749,7 @@ export function StockExplorer() {
     setFinancialsError(null);
     setRevenue(null);
     setRevenueError(null);
+    setRevenueView("annual");
     setMargins(null);
     setMarginsError(null);
     setPeRatio(null);
@@ -662,7 +811,11 @@ export function StockExplorer() {
 
       if (revenueRes.ok) {
         const revenueData = await revenueRes.json();
-        if (Array.isArray(revenueData.points) && revenueData.points.length > 0) {
+        if (
+          (Array.isArray(revenueData.points) && revenueData.points.length > 0) ||
+          (Array.isArray(revenueData.quarterly?.points) &&
+            revenueData.quarterly.points.length > 0)
+        ) {
           setRevenue(revenueData as RevenuePayload);
         } else {
           setRevenueError("Revenue data unavailable for this stock");
@@ -911,6 +1064,8 @@ export function StockExplorer() {
   const cashVsDebtScore = financials ? calculateCashVsDebtScore(financials) : null;
   const revenueGrowthScore = revenue ? calculateRevenueGrowthScore(revenue) : null;
   const operatingMarginScore = margins ? calculateOperatingMarginScore(margins) : null;
+  const ruleOf40Score =
+    revenue && margins ? calculateRuleOf40Score(revenue, margins) : null;
   const shortInterestScore = shortInterest
     ? calculateShortInterestScore(shortInterest)
     : null;
@@ -969,10 +1124,11 @@ export function StockExplorer() {
       })
     : null;
 
-  const scoreItems = [
+  const allScores = [
     cashVsDebtScore,
     revenueGrowthScore,
     operatingMarginScore,
+    ruleOf40Score,
     shortInterestScore,
     institutionalOwnershipScore,
     scalabilityTestScore,
@@ -983,9 +1139,9 @@ export function StockExplorer() {
     secularTrendScore,
     cultureMissionScore,
     talentScore,
-  ].filter((item) => item != null);
-  const totalScore = scoreItems.reduce((sum, item) => sum + item.score, 0);
-  const totalMaxScore = scoreItems.reduce((sum, item) => sum + item.maxScore, 0);
+  ];
+  const scoreItems = allScores.filter((item) => item != null);
+  const totalScore = allScores.reduce((sum, item) => sum + (item?.score ?? 0), 0);
 
   return (
     <div>
@@ -1242,6 +1398,7 @@ export function StockExplorer() {
                 }}
               />
               Double down zone
+              <MetricHelp topic="Double down" />
             </span>
             <span>
               <span
@@ -1362,6 +1519,7 @@ export function StockExplorer() {
             <div style={{ marginTop: 40 }}>
               <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: "0.95rem" }}>
                 Trailing P/E ratio (price ÷ TTM EPS)
+                <MetricHelp topic="P/E ratio" />
               </p>
 
               <div
@@ -1517,6 +1675,7 @@ export function StockExplorer() {
                     }}
                   >
                     Competitive moat
+                    <MetricHelp topic="Competitive moat" />
                   </span>
                   <span
                     style={{
@@ -1629,6 +1788,7 @@ export function StockExplorer() {
                     }}
                   >
                     Recession proof
+                    <MetricHelp topic="Recession proof" />
                   </span>
                   <span
                     style={{
@@ -1725,6 +1885,7 @@ export function StockExplorer() {
                   }}
                 >
                   CEO
+                  <MetricHelp topic="CEO" />
                 </div>
                 <div
                   style={{
@@ -1798,6 +1959,7 @@ export function StockExplorer() {
                     }}
                   >
                     Total score
+                    <MetricHelp topic="Total score" />
                   </div>
                   <div
                     style={{
@@ -1816,11 +1978,11 @@ export function StockExplorer() {
                       }}
                     >
                       {" "}
-                      / {totalMaxScore}
+                      / {TOTAL_MAX_SCORE}
                     </span>
                   </div>
                   <p style={{ margin: "8px 0 0", color: "var(--muted)", fontSize: "0.9rem" }}>
-                    {scoreItems.length} metrics scored · scroll for breakdown
+                    {SCORE_METRIC_COUNT} metrics · missing data scores 0
                   </p>
                 </div>
               ) : (
@@ -1856,6 +2018,7 @@ export function StockExplorer() {
                       }}
                     >
                       Cash vs debt
+                      <MetricHelp topic="Cash vs debt" />
                     </div>
                     <div
                       style={{
@@ -1975,6 +2138,7 @@ export function StockExplorer() {
                       }}
                     >
                       Revenue growth
+                      <MetricHelp topic="Revenue growth" />
                     </div>
                     <div
                       style={{
@@ -2083,6 +2247,7 @@ export function StockExplorer() {
                       }}
                     >
                       Operating margin
+                      <MetricHelp topic="Operating margin" />
                     </div>
                     <div
                       style={{
@@ -2163,6 +2328,96 @@ export function StockExplorer() {
                 </div>
               )}
 
+              {ruleOf40Score && (
+                <div
+                  style={{
+                    padding: "16px 18px",
+                    borderRadius: 16,
+                    border: "1px solid var(--line)",
+                    background: "rgba(18, 26, 43, 0.75)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.95rem",
+                        fontWeight: 650,
+                        color: "var(--text)",
+                      }}
+                    >
+                      Rule of 40
+                      <MetricHelp topic="Rule of 40" />
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "1.4rem",
+                        fontWeight: 700,
+                        color:
+                          ruleOf40Score.score >= 10
+                            ? "var(--accent)"
+                            : ruleOf40Score.score >= 5
+                              ? MARGIN_BAR
+                              : OPEX_GROWTH,
+                      }}
+                    >
+                      {ruleOf40Score.score}
+                      <span
+                        style={{
+                          fontSize: "0.95rem",
+                          fontWeight: 500,
+                          color: "var(--muted)",
+                        }}
+                      >
+                        {" "}
+                        / {ruleOf40Score.maxScore}
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 12,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 10,
+                        border: "1px solid rgba(251, 146, 60, 0.35)",
+                        background: "rgba(251, 146, 60, 0.08)",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      <span style={{ color: "var(--muted)" }}>Latest </span>
+                      <strong style={{ color: RULE_BAR }}>
+                        {ruleOf40Score.latest.toFixed(1)}
+                      </strong>
+                    </div>
+                  </div>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "var(--muted)",
+                      fontSize: "0.95rem",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    {ruleOf40Score.explanation}
+                  </p>
+                </div>
+              )}
+
               {shortInterestScore && shortInterest && (
                 <div
                   style={{
@@ -2190,6 +2445,7 @@ export function StockExplorer() {
                       }}
                     >
                       Short interest
+                      <MetricHelp topic="Short interest" />
                     </div>
                     <div
                       style={{
@@ -2297,6 +2553,7 @@ export function StockExplorer() {
                       }}
                     >
                       Institutional ownership
+                      <MetricHelp topic="Institutional ownership" />
                     </div>
                     <div
                       style={{
@@ -2388,6 +2645,7 @@ export function StockExplorer() {
                       }}
                     >
                       Scalability test
+                      <MetricHelp topic="Scalability test" />
                     </div>
                     <div
                       style={{
@@ -2512,6 +2770,7 @@ export function StockExplorer() {
                       }}
                     >
                       vs S&P 500 (5Y)
+                      <MetricHelp topic="vs S&P 500 (5Y)" />
                     </div>
                     <div
                       style={{
@@ -2641,6 +2900,7 @@ export function StockExplorer() {
                       }}
                     >
                       Moat test
+                      <MetricHelp topic="Moat test" />
                     </div>
                     <div
                       style={{
@@ -2763,6 +3023,7 @@ export function StockExplorer() {
                       }}
                     >
                       CEO test
+                      <MetricHelp topic="CEO test" />
                     </div>
                     <div
                       style={{
@@ -2897,6 +3158,7 @@ export function StockExplorer() {
                       }}
                     >
                       Recession proof
+                      <MetricHelp topic="Recession proof" />
                     </div>
                     <div
                       style={{
@@ -3013,6 +3275,7 @@ export function StockExplorer() {
                       }}
                     >
                       Secular trend test
+                      <MetricHelp topic="Secular trend test" />
                     </div>
                     <div
                       style={{
@@ -3135,6 +3398,7 @@ export function StockExplorer() {
                       }}
                     >
                       Culture / mission
+                      <MetricHelp topic="Culture / mission" />
                     </div>
                     <div
                       style={{
@@ -3257,6 +3521,7 @@ export function StockExplorer() {
                       }}
                     >
                       Talent score
+                      <MetricHelp topic="Talent score" />
                     </div>
                     <div
                       style={{
@@ -3404,8 +3669,210 @@ export function StockExplorer() {
 
           {analysisTab === "financials" && (
             <>
-            <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: "0.95rem" }}>
+            {revenue && (() => {
+              const series =
+                revenueView === "quarterly"
+                  ? revenue.quarterly
+                  : {
+                      points: revenue.points,
+                      latestRevenue: revenue.latestRevenue,
+                      latestGrowthPercent: revenue.latestGrowthPercent,
+                    };
+              const growthLabel = revenueView === "quarterly" ? "QoQ growth" : "YoY growth";
+              const periodLabel = revenueView === "quarterly" ? "quarter" : "year";
+
+              return (
+              <div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    marginBottom: 16,
+                  }}
+                >
+                  <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.95rem" }}>
+                    Revenue growth by {periodLabel} ({revenue.currency})
+                    <MetricHelp topic="Revenue growth" />
+                  </p>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {(
+                      [
+                        { id: "annual", label: "Yearly" },
+                        { id: "quarterly", label: "Quarterly" },
+                      ] as const
+                    ).map((option) => {
+                      const isActive = revenueView === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setRevenueView(option.id)}
+                          style={{
+                            border: `1px solid ${isActive ? "var(--accent-dim)" : "var(--line)"}`,
+                            borderRadius: 999,
+                            padding: "6px 12px",
+                            background: isActive ? "rgba(61, 214, 198, 0.14)" : "var(--bg-soft)",
+                            color: isActive ? "var(--accent)" : "var(--muted)",
+                            fontSize: "0.82rem",
+                            fontWeight: isActive ? 650 : 500,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {series.points.length === 0 ? (
+                  <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.95rem" }}>
+                    {revenueView === "quarterly" ? "Quarterly" : "Yearly"} revenue is unavailable for this stock.
+                  </p>
+                ) : (
+                <>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    marginBottom: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(167, 139, 250, 0.35)",
+                      background: "rgba(167, 139, 250, 0.08)",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    <span style={{ color: "var(--muted)" }}>Latest revenue </span>
+                    <strong style={{ color: REVENUE_BAR }}>
+                      {formatBillions(series.latestRevenue)}
+                    </strong>
+                  </div>
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(61, 214, 198, 0.35)",
+                      background: "rgba(61, 214, 198, 0.08)",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    <span style={{ color: "var(--muted)" }}>{growthLabel} </span>
+                    <strong style={{ color: GROWTH_LINE }}>
+                      {formatGrowth(series.latestGrowthPercent)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    height: 320,
+                    width: "100%",
+                    padding: "12px 8px 8px",
+                    borderRadius: 16,
+                    border: "1px solid var(--line)",
+                    background: "rgba(18, 26, 43, 0.75)",
+                  }}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={series.points}
+                      margin={{ top: 12, right: 48, left: 0, bottom: 8 }}
+                    >
+                      <CartesianGrid
+                        stroke="rgba(147, 164, 195, 0.18)"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="year"
+                        tick={{ fill: "#93a4c3", fontSize: 11 }}
+                        axisLine={{ stroke: "#243047" }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        yAxisId="revenue"
+                        tick={{ fill: "#93a4c3", fontSize: 11 }}
+                        width={56}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(value: number) => formatBillions(value)}
+                      />
+                      <YAxis
+                        yAxisId="growth"
+                        orientation="right"
+                        tick={{ fill: GROWTH_LINE, fontSize: 11 }}
+                        width={44}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(value: number) => `${value.toFixed(0)}%`}
+                      />
+                      <Tooltip
+                        cursor={{ fill: "rgba(167, 139, 250, 0.08)" }}
+                        content={(props) => (
+                          <RevenueTooltip
+                            {...props}
+                            currency={revenue.currency}
+                            growthLabel={growthLabel}
+                          />
+                        )}
+                      />
+                      <Legend
+                        wrapperStyle={{ color: "#93a4c3", fontSize: "0.85rem" }}
+                        formatter={(value) => {
+                          if (value === "revenue") return "Revenue";
+                          if (value === "growthPercent") return growthLabel;
+                          return value;
+                        }}
+                      />
+                      <Bar
+                        yAxisId="revenue"
+                        dataKey="revenue"
+                        name="revenue"
+                        fill={REVENUE_BAR}
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Line
+                        yAxisId="growth"
+                        type="monotone"
+                        dataKey="growthPercent"
+                        name="growthPercent"
+                        stroke={GROWTH_LINE}
+                        strokeWidth={2}
+                        dot={{ r: 4, fill: GROWTH_LINE, strokeWidth: 0 }}
+                        connectNulls
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                </>
+                )}
+              </div>
+              );
+            })()}
+
+            {!revenue && revenueError && (
+              <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: "0.95rem" }}>
+                {revenueError}
+              </p>
+            )}
+
+            <p
+              style={{
+                margin: revenue || revenueError ? "40px 0 16px" : "0 0 16px",
+                color: "var(--muted)",
+                fontSize: "0.95rem",
+              }}
+            >
               Debt vs cash · quarterly ({financials?.currency ?? chart.currency})
+              <MetricHelp topic="Cash vs debt" />
             </p>
 
             {financials && (
@@ -3576,148 +4043,11 @@ export function StockExplorer() {
               </p>
             )}
 
-            {revenue && (
-              <div style={{ marginTop: 40 }}>
-                <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: "0.95rem" }}>
-                  Revenue growth by year ({revenue.currency})
-                </p>
-
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 12,
-                    marginBottom: 16,
-                  }}
-                >
-                  <div
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(167, 139, 250, 0.35)",
-                      background: "rgba(167, 139, 250, 0.08)",
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    <span style={{ color: "var(--muted)" }}>Latest revenue </span>
-                    <strong style={{ color: REVENUE_BAR }}>
-                      {formatBillions(revenue.latestRevenue)}
-                    </strong>
-                  </div>
-                  <div
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(61, 214, 198, 0.35)",
-                      background: "rgba(61, 214, 198, 0.08)",
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    <span style={{ color: "var(--muted)" }}>YoY growth </span>
-                    <strong style={{ color: GROWTH_LINE }}>
-                      {formatGrowth(revenue.latestGrowthPercent)}
-                    </strong>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    height: 320,
-                    width: "100%",
-                    padding: "12px 8px 8px",
-                    borderRadius: 16,
-                    border: "1px solid var(--line)",
-                    background: "rgba(18, 26, 43, 0.75)",
-                  }}
-                >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart
-                      data={revenue.points}
-                      margin={{ top: 12, right: 48, left: 0, bottom: 8 }}
-                    >
-                      <CartesianGrid
-                        stroke="rgba(147, 164, 195, 0.18)"
-                        vertical={false}
-                      />
-                      <XAxis
-                        dataKey="year"
-                        tick={{ fill: "#93a4c3", fontSize: 11 }}
-                        axisLine={{ stroke: "#243047" }}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        yAxisId="revenue"
-                        tick={{ fill: "#93a4c3", fontSize: 11 }}
-                        width={56}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(value: number) => formatBillions(value)}
-                      />
-                      <YAxis
-                        yAxisId="growth"
-                        orientation="right"
-                        tick={{ fill: GROWTH_LINE, fontSize: 11 }}
-                        width={44}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(value: number) => `${value.toFixed(0)}%`}
-                      />
-                      <Tooltip
-                        cursor={{ fill: "rgba(167, 139, 250, 0.08)" }}
-                        content={(props) => (
-                          <RevenueTooltip
-                            {...props}
-                            currency={revenue.currency}
-                          />
-                        )}
-                      />
-                      <Legend
-                        wrapperStyle={{ color: "#93a4c3", fontSize: "0.85rem" }}
-                        formatter={(value) => {
-                          if (value === "revenue") return "Revenue";
-                          if (value === "growthPercent") return "YoY growth";
-                          return value;
-                        }}
-                      />
-                      <Bar
-                        yAxisId="revenue"
-                        dataKey="revenue"
-                        name="revenue"
-                        fill={REVENUE_BAR}
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Line
-                        yAxisId="growth"
-                        type="monotone"
-                        dataKey="growthPercent"
-                        name="growthPercent"
-                        stroke={GROWTH_LINE}
-                        strokeWidth={2}
-                        dot={{ r: 4, fill: GROWTH_LINE, strokeWidth: 0 }}
-                        connectNulls
-                      />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
-
-            {!revenue && revenueError && (
-              <p
-                style={{
-                  margin: "40px 0 0",
-                  color: "var(--muted)",
-                  fontSize: "0.95rem",
-                }}
-              >
-                {revenueError}
-              </p>
-            )}
-
             {margins && (
               <div style={{ marginTop: 40 }}>
                 <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: "0.95rem" }}>
                   Net margin by year ({margins.currency})
+                  <MetricHelp topic="Net margin" />
                 </p>
 
                 <div
@@ -3854,10 +4184,104 @@ export function StockExplorer() {
               </p>
             )}
 
+            {ruleOf40Score && (
+              <div style={{ marginTop: 40 }}>
+                <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: "0.95rem" }}>
+                  Rule of 40 by year
+                  <MetricHelp topic="Rule of 40" />
+                </p>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    marginBottom: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(251, 146, 60, 0.35)",
+                      background: "rgba(251, 146, 60, 0.08)",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    <span style={{ color: "var(--muted)" }}>Latest </span>
+                    <strong style={{ color: RULE_BAR }}>
+                      {ruleOf40Score.latest.toFixed(1)}
+                    </strong>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    height: 260,
+                    width: "100%",
+                    padding: "12px 8px 8px",
+                    borderRadius: 16,
+                    border: "1px solid var(--line)",
+                    background: "rgba(18, 26, 43, 0.75)",
+                  }}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={ruleOf40Score.points}
+                      margin={{ top: 12, right: 16, left: 0, bottom: 8 }}
+                    >
+                      <CartesianGrid stroke="rgba(147, 164, 195, 0.18)" vertical={false} />
+                      <XAxis
+                        dataKey="year"
+                        tick={{ fill: "#93a4c3", fontSize: 11 }}
+                        axisLine={{ stroke: "#243047" }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "#93a4c3", fontSize: 11 }}
+                        width={44}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "#121a2b",
+                          border: "1px solid #243047",
+                          borderRadius: 10,
+                          color: "#e8eef9",
+                        }}
+                        formatter={(value: number, name: string) => {
+                          if (name === "ruleOf40") return [`${Number(value).toFixed(1)}`, "Rule of 40"];
+                          return [value, name];
+                        }}
+                      />
+                      <ReferenceLine
+                        y={40}
+                        stroke={YEAR_HIGH_LINE}
+                        strokeDasharray="6 4"
+                        label={{
+                          value: "40",
+                          fill: YEAR_HIGH_LINE,
+                          fontSize: 11,
+                          position: "right",
+                        }}
+                      />
+                      <Bar
+                        dataKey="ruleOf40"
+                        name="ruleOf40"
+                        fill={RULE_BAR}
+                        radius={[4, 4, 0, 0]}
+                        barSize={28}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
             {scaleTest && (
               <div style={{ marginTop: 40 }}>
                 <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: "0.95rem" }}>
                   Revenue growth vs operating expenses · scale test
+                  <MetricHelp topic="Scalability test" />
                 </p>
 
                 <div
