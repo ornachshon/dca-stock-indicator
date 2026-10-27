@@ -1,12 +1,6 @@
 import { StockExplorer } from "../components/StockExplorer";
-import { createClient } from "../lib/supabase/server";
 
-export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+export default function Home() {
   return (
     <main
       style={{
@@ -15,34 +9,6 @@ export default async function Home() {
         padding: "48px 20px 64px",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 18,
-          color: "var(--muted)",
-          fontSize: "0.9rem",
-        }}
-      >
-        <span>{user?.email}</span>
-        <form action="/auth/signout" method="post">
-          <button
-            type="submit"
-            style={{
-              border: "1px solid var(--line)",
-              borderRadius: 999,
-              padding: "6px 12px",
-              background: "transparent",
-              color: "var(--muted)",
-              cursor: "pointer",
-            }}
-          >
-            Sign out
-          </button>
-        </form>
-      </div>
       <h1
         style={{
           margin: "0 0 8px",

@@ -7,25 +7,6 @@ import type {
   ShortInterestPayload,
 } from "./types";
 
-/** Same ceiling for every stock. A missing metric scores 0 and still counts here. */
-export const TOTAL_MAX_SCORE =
-  19 + // cash vs debt
-  10 + // revenue growth
-  10 + // operating margin
-  10 + // short interest
-  10 + // institutional ownership
-  10 + // scalability test
-  10 + // vs S&P 500
-  10 + // moat
-  10 + // CEO
-  5 + // recession proof
-  10 + // secular trend
-  10 + // culture / mission
-  10 + // talent
-  10; // rule of 40
-
-export const SCORE_METRIC_COUNT = 14;
-
 export type CashVsDebtScore = {
   score: number;
   maxScore: 19;
@@ -212,85 +193,6 @@ export function calculateOperatingMarginScore(
     maxScore: 10,
     operatingMarginPercent,
     explanation: `Operating margin is ${operatingMarginPercent.toFixed(1)}%, below 10%.`,
-  };
-}
-
-export type RuleOf40Point = {
-  year: string;
-  revenueGrowth: number;
-  operatingMargin: number;
-  ruleOf40: number;
-};
-
-export type RuleOf40Score = {
-  score: number;
-  maxScore: 10;
-  latest: number;
-  points: RuleOf40Point[];
-  explanation: string;
-};
-
-export function buildRuleOf40(
-  revenue: RevenuePayload,
-  margins: MarginsPayload
-): RuleOf40Point[] {
-  const marginByYear = new Map(
-    margins.points
-      .filter((point) => point.operatingPercent != null)
-      .map((point) => [point.year, point.operatingPercent as number])
-  );
-
-  return revenue.points.flatMap((point) => {
-    if (point.growthPercent == null) return [];
-    const operatingMargin = marginByYear.get(point.year);
-    if (operatingMargin == null) return [];
-    const ruleOf40 = Math.round((point.growthPercent + operatingMargin) * 10) / 10;
-    return [
-      {
-        year: point.year,
-        revenueGrowth: point.growthPercent,
-        operatingMargin,
-        ruleOf40,
-      },
-    ];
-  });
-}
-
-export function calculateRuleOf40Score(
-  revenue: RevenuePayload,
-  margins: MarginsPayload
-): RuleOf40Score | null {
-  const points = buildRuleOf40(revenue, margins);
-  const latestPoint = points[points.length - 1];
-  if (!latestPoint) return null;
-
-  const latest = latestPoint.ruleOf40;
-  if (latest >= 40) {
-    return {
-      score: 10,
-      maxScore: 10,
-      latest,
-      points,
-      explanation: `Rule of 40 is ${latest.toFixed(1)} for ${latestPoint.year}. Sales growth plus operating margin is at least 40.`,
-    };
-  }
-
-  if (latest >= 20) {
-    return {
-      score: 5,
-      maxScore: 10,
-      latest,
-      points,
-      explanation: `Rule of 40 is ${latest.toFixed(1)} for ${latestPoint.year}. That is below 40, but at least 20.`,
-    };
-  }
-
-  return {
-    score: 0,
-    maxScore: 10,
-    latest,
-    points,
-    explanation: `Rule of 40 is ${latest.toFixed(1)} for ${latestPoint.year}, below 20.`,
   };
 }
 
