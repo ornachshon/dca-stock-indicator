@@ -48,18 +48,26 @@ export type RevenuePoint = {
   growthPercent: number | null;
 };
 
+export type RevenueSeries = {
+  points: RevenuePoint[];
+  latestRevenue: number;
+  latestGrowthPercent: number | null;
+};
+
 export type RevenuePayload = {
   symbol: string;
   currency: string;
   points: RevenuePoint[];
   latestRevenue: number;
   latestGrowthPercent: number | null;
+  quarterly: RevenueSeries;
 };
 
 export type MarginPoint = {
   year: string;
   amount: number;
   percent: number;
+  operatingPercent: number | null;
 };
 
 export type MarginsPayload = {
